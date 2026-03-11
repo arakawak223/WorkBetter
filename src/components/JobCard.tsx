@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { SourceBadge } from '@/components/SourceBadge'
+import { FavoriteButton } from '@/components/FavoriteButton'
 
 export type JobData = {
   id: string
@@ -55,11 +56,14 @@ export function JobCard({ job }: { job: JobData }) {
               {job.companyName}
             </CardDescription>
           </div>
-          {job.matchScore !== undefined && (
-            <Badge variant="outline" className="shrink-0 text-sm">
-              {job.matchScore}%
-            </Badge>
-          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {job.matchScore !== undefined && (
+              <Badge variant="outline" className="text-sm">
+                {job.matchScore}%
+              </Badge>
+            )}
+            <FavoriteButton jobId={job.id} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

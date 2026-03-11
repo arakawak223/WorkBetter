@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchSchema } from '@/lib/schemas'
 import { searchJobs } from '@/lib/processing/pipeline'
+import { withRateLimit } from '@/lib/security'
 
 export async function GET(request: NextRequest) {
+  // Rate limit: 30 requests per minute per IP
+  const rateLimitResponse = withRateLimit(request, '/api/search', 30)
+  if (rateLimitResponse) return rateLimitResponse
+
   const { searchParams } = request.nextUrl
 
   const rawQuery = {

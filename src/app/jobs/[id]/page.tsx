@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { SourceBadge } from '@/components/SourceBadge'
+import { FavoriteButton } from '@/components/FavoriteButton'
 import { MOCK_JOBS } from '@/lib/mock-data'
 
 function formatEmploymentType(type: string): string {
@@ -54,11 +55,14 @@ export default function JobDetailPage({
                 {job.companyName}
               </p>
             </div>
-            {job.matchScore !== undefined && (
-              <Badge variant="outline" className="shrink-0 text-lg px-3 py-1">
-                マッチ度 {job.matchScore}%
-              </Badge>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {job.matchScore !== undefined && (
+                <Badge variant="outline" className="text-lg px-3 py-1">
+                  マッチ度 {job.matchScore}%
+                </Badge>
+              )}
+              <FavoriteButton jobId={job.id} />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

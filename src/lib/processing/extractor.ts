@@ -158,19 +158,7 @@ function parseSalaryText(
 ): { min: number | null; max: number | null } {
   if (!text) return { min: null, max: null }
 
-  // 「年収700万円〜1000万円」パターン
-  const yearlyMatch = text.match(/(\d+)\s*万\s*円?\s*[〜~～\-ー−]\s*(\d+)\s*万/)
-  if (yearlyMatch) {
-    return { min: parseInt(yearlyMatch[1]), max: parseInt(yearlyMatch[2]) }
-  }
-
-  // 「年収700万〜」パターン
-  const yearlyMinOnly = text.match(/(\d+)\s*万\s*円?\s*[〜~～\-ー−]/)
-  if (yearlyMinOnly) {
-    return { min: parseInt(yearlyMinOnly[1]), max: null }
-  }
-
-  // 「月給45万円〜65万円」パターン → 年収に変換
+  // 「月給45万円〜65万円」パターン → 年収に変換（年収パターンより先にチェック）
   const monthlyMatch = text.match(
     /月給?\s*(\d+)\s*万\s*円?\s*[〜~～\-ー−]\s*(\d+)\s*万/
   )
@@ -181,6 +169,18 @@ function parseSalaryText(
       min: parseInt(monthlyMatch[1]) * months,
       max: parseInt(monthlyMatch[2]) * months,
     }
+  }
+
+  // 「年収700万円〜1000万円」パターン
+  const yearlyMatch = text.match(/(\d+)\s*万\s*円?\s*[〜~～\-ー−]\s*(\d+)\s*万/)
+  if (yearlyMatch) {
+    return { min: parseInt(yearlyMatch[1]), max: parseInt(yearlyMatch[2]) }
+  }
+
+  // 「年収700万〜」パターン
+  const yearlyMinOnly = text.match(/(\d+)\s*万\s*円?\s*[〜~～\-ー−]/)
+  if (yearlyMinOnly) {
+    return { min: parseInt(yearlyMinOnly[1]), max: null }
   }
 
   return { min: null, max: null }
