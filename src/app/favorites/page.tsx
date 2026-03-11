@@ -15,7 +15,7 @@ export default function FavoritesPage() {
   useEffect(() => {
     if (loading) return
     if (!user || !session) {
-      setIsLoading(false)
+      queueMicrotask(() => setIsLoading(false))
       return
     }
 

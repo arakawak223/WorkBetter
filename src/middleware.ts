@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(_request: NextRequest) {
+export function middleware(_request: NextRequest) { // eslint-disable-line @typescript-eslint/no-unused-vars
   const response = NextResponse.next()
 
   // Security headers

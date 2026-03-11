@@ -44,11 +44,16 @@ export default function MyPage() {
   const [favoriteCount, setFavoriteCount] = useState(0)
   const [name, setName] = useState('')
   const [age, setAge] = useState('')
+  const [nameInitialized, setNameInitialized] = useState(false)
+
+  // user メタデータから名前を初期化（一度だけ）
+  if (user && !nameInitialized) {
+    setName(user.user_metadata?.name ?? '')
+    setNameInitialized(true)
+  }
 
   useEffect(() => {
     if (loading || !user || !session) return
-
-    setName(user.user_metadata?.name ?? '')
 
     const headers = { Authorization: `Bearer ${session.access_token}` }
 
