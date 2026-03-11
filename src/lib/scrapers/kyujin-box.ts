@@ -3,14 +3,29 @@ import type { JobScraper, RawJobData, ScraperQuery } from './types'
 import { getRandomUserAgent, checkRobotsTxt } from './base'
 
 const BASE_URL = 'https://xn--pckua2a7gp15o89zb.com' // 求人ボックス
-const MAX_PAGES = 8 // 並列取得ページ数（1ページ≒25件、最大200件）
+const PAGES_PER_KEYWORD = 5 // 各キーワードから取得するページ数
 
-function buildSearchUrl(query: ScraperQuery, page?: number): string {
-  const keyword = query.occupation || '正社員'
+// 職種未指定時に複数キーワードで並列検索して結果を増やす
+const DEFAULT_KEYWORDS = [
+  '正社員',
+  'パート アルバイト',
+  '契約社員',
+  '派遣',
+  'エンジニア',
+  '営業',
+  '事務',
+  '医療 介護',
+]
+
+function buildSearchUrl(
+  keyword: string,
+  location: string | undefined,
+  page: number
+): string {
   const parts: string[] = [keyword, 'の仕事']
-  if (query.location) parts.push(`-${query.location}`)
+  if (location) parts.push(`-${location}`)
   const base = `${BASE_URL}/${encodeURIComponent(parts.join(''))}`
-  if (page && page > 1) return `${base}?pg=${page}`
+  if (page > 1) return `${base}?pg=${page}`
   return base
 }
 
@@ -74,7 +89,7 @@ function parseJobCards($: cheerio.CheerioAPI): RawJobData[] {
 
 async function fetchPage(
   url: string,
-  page: number
+  label: string
 ): Promise<RawJobData[]> {
   const res = await fetch(url, {
     headers: {
@@ -87,7 +102,7 @@ async function fetchPage(
   })
 
   if (!res.ok) {
-    console.warn(`[KyujinBox] Page ${page}: HTTP ${res.status}`)
+    console.warn(`[KyujinBox] ${label}: HTTP ${res.status}`)
     return []
   }
 
@@ -107,33 +122,48 @@ export const kyujinBoxScraper: JobScraper = {
         return []
       }
 
-      // 全ページのURLを生成して並列取得
-      const pageUrls = Array.from({ length: MAX_PAGES }, (_, i) => ({
-        url: buildSearchUrl(query, i + 1),
-        page: i + 1,
-      }))
+      // 職種指定があればそのキーワードのみ、なければ複数キーワードで並列検索
+      const keywords = query.occupation
+        ? [query.occupation]
+        : DEFAULT_KEYWORDS
 
-      const results = await Promise.allSettled(
-        pageUrls.map(({ url, page }) => fetchPage(url, page))
-      )
+      // ページ数: 指定キーワード時は多め、デフォルト時はキーワード数が多いので少なめ
+      const pagesPerKw = query.occupation
+        ? 20 // 特定職種: 20ページ ≒ 500件
+        : PAGES_PER_KEYWORD // 全カテゴリ: 5ページ × 8キーワード ≒ 1000件
 
-      const allJobs: RawJobData[] = []
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i]
-        if (result.status === 'fulfilled') {
-          console.log(
-            `[KyujinBox] Page ${i + 1}: ${result.value.length} jobs`
-          )
-          allJobs.push(...result.value)
-        } else {
-          console.warn(
-            `[KyujinBox] Page ${i + 1}: FAILED -`,
-            result.reason
-          )
+      // 全キーワード×全ページのフェッチタスクを生成
+      const fetchTasks: { url: string; label: string }[] = []
+      for (const kw of keywords) {
+        for (let page = 1; page <= pagesPerKw; page++) {
+          fetchTasks.push({
+            url: buildSearchUrl(kw, query.location, page),
+            label: `${kw} pg${page}`,
+          })
         }
       }
 
-      console.log(`[KyujinBox] Total: ${allJobs.length} jobs from ${MAX_PAGES} pages`)
+      console.log(
+        `[KyujinBox] Fetching ${fetchTasks.length} pages (${keywords.length} keywords × ${pagesPerKw} pages)`
+      )
+
+      // 並列実行（Promise.allSettledで失敗を許容）
+      const results = await Promise.allSettled(
+        fetchTasks.map(({ url, label }) => fetchPage(url, label))
+      )
+
+      const allJobs: RawJobData[] = []
+      let successCount = 0
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value.length > 0) {
+          successCount++
+          allJobs.push(...result.value)
+        }
+      }
+
+      console.log(
+        `[KyujinBox] Total: ${allJobs.length} jobs from ${successCount}/${fetchTasks.length} successful pages`
+      )
       return allJobs
     } catch (e) {
       console.warn(

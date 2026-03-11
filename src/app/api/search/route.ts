@@ -3,6 +3,9 @@ import { searchSchema } from '@/lib/schemas'
 import { searchJobs } from '@/lib/processing/pipeline'
 import { withRateLimit } from '@/lib/security'
 
+// Proプラン以上で60秒まで利用可能（Hobbyは10秒制限）
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   // Rate limit: 30 requests per minute per IP
   const rateLimitResponse = withRateLimit(request, '/api/search', 30)
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const jobs = await searchJobs(parsed.data)
+  const { jobs, debug } = await searchJobs(parsed.data)
 
-  return NextResponse.json({ jobs, total: jobs.length })
+  return NextResponse.json({ jobs, total: jobs.length, debug })
 }
