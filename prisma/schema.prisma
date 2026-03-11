@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum SourceType {
+  direct
+  agent
+}
+
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+  freelance
+  internship
+  other
+}
+
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  name         String?
+  age          Int?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  searches     SearchCondition[]
+  favorites    Favorite[]
+
+  @@map("users")
+}
+
+model Job {
+  id             String         @id @default(cuid())
+  companyName    String         @map("company_name")
+  title          String
+  location       String
+  remoteOk       Boolean        @default(false) @map("remote_ok")
+  description    String
+  salaryMin      Int?           @map("salary_min")
+  salaryMax      Int?           @map("salary_max")
+  employmentType EmploymentType @default(full_time) @map("employment_type")
+  sourceType     SourceType     @map("source_type")
+  agentName      String?        @map("agent_name")
+  sourceUrl      String         @map("source_url")
+  sourceSite     String         @map("source_site")
+  dedupHash      String         @unique @map("dedup_hash")
+  expiresAt      DateTime?      @map("expires_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  favorites      Favorite[]
+
+  @@index([sourceType])
+  @@index([location])
+  @@index([salaryMin, salaryMax])
+  @@index([expiresAt])
+  @@map("jobs")
+}
+
+model SearchCondition {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  age       Int?
+  occupation String?
+  location  String?
+  salaryMin Int?     @map("salary_min")
+  salaryMax Int?     @map("salary_max")
+  remoteOk  Boolean  @default(false) @map("remote_ok")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("search_conditions")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  jobId     String   @map("job_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("favorites")
+}
