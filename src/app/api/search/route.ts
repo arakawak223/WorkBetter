@@ -1,0 +1,35 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { searchSchema } from '@/lib/schemas'
+import { searchJobs } from '@/lib/processing/pipeline'
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = request.nextUrl
+
+  const rawQuery = {
+    age: searchParams.get('age')
+      ? Number(searchParams.get('age'))
+      : undefined,
+    occupation: searchParams.get('occupation') ?? undefined,
+    category: searchParams.get('category') ?? undefined,
+    location: searchParams.get('location') ?? undefined,
+    remoteOk: searchParams.get('remoteOk') === 'true',
+    salaryMin: searchParams.get('salaryMin')
+      ? Number(searchParams.get('salaryMin'))
+      : undefined,
+    salaryMax: searchParams.get('salaryMax')
+      ? Number(searchParams.get('salaryMax'))
+      : undefined,
+  }
+
+  const parsed = searchSchema.safeParse(rawQuery)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid search parameters', details: parsed.error.issues },
+      { status: 400 }
+    )
+  }
+
+  const jobs = await searchJobs(parsed.data)
+
+  return NextResponse.json({ jobs, total: jobs.length })
+}
