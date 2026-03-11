@@ -17,6 +17,7 @@
     "@prisma/client": "^7.4.2",
     "@prisma/pg-worker": "^6.9.0",
     "@supabase/supabase-js": "^2.99.0",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
