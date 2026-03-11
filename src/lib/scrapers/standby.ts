@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio'
 import type { JobScraper, RawJobData, ScraperQuery } from './types'
 import { getRandomUserAgent, checkRobotsTxt } from './base'
 
-const BASE_URL = 'https://www.baitoru.com'
+const BASE_URL = 'https://jp.stanby.com'
 const PAGES_PER_KEYWORD = 10
 
 const DEFAULT_KEYWORDS = [
@@ -10,86 +10,91 @@ const DEFAULT_KEYWORDS = [
   'エンジニア',
   '営業',
   '事務',
-  '飲食',
-  '製造',
   '介護',
+  'ドライバー',
+  '製造',
+  '建設',
+  '飲食',
   '販売',
-  '物流 配送',
-  '建設 建築',
   'IT プログラマー',
-  '看護 医療',
+  '医療 看護',
+  '物流 配送',
   '教育 講師',
   '金融 保険',
-  '不動産',
 ]
 
 function buildSearchUrl(keyword: string, location: string | undefined, page: number): string {
-  const parts = [keyword]
-  if (location) parts.push(location)
-  const kw = parts.join('+')
-  const base = `${BASE_URL}/kw/${encodeURIComponent(kw)}/jlist/`
-  if (page > 1) return `${base}?pg=${page}`
-  return base
+  const params = new URLSearchParams()
+  const q = location ? `${keyword} ${location}` : keyword
+  params.set('q', q)
+  params.set('num', '25')
+  if (page > 1) params.set('page', String(page))
+  return `${BASE_URL}/search?${params.toString()}`
 }
 
 function parseJobCards($: cheerio.CheerioAPI): RawJobData[] {
   const jobs: RawJobData[] = []
 
-  $('div.list-jobListDetail div.bg02').each((_i, el) => {
+  $('div.job-card, article.job-card, div.job-list-item').each((_i, el) => {
     const $el = $(el)
 
-    // Title from h2 or h3 inside pt02b
-    const title =
-      $el.find('.pt02b h2 a span, .pt02b h3 a span').first().text().trim()
-    if (!title) return
+    const title = $el.find('.job-card-title, .title').first().text().trim()
+    const companyName = $el.find('.company').first().text().trim()
 
-    // Company name from pt02b > p
-    const companyName = $el.find('.pt02b > p').first().text().trim()
+    // attribution-items contain location, salary, employment type etc.
+    const attributions = $el.find('.attribution-item, .attribution-items .text')
+    const attributionTexts: string[] = []
+    attributions.each((_j, attr) => {
+      attributionTexts.push($(attr).text().trim())
+    })
 
-    // Location from ul02
-    const locationRaw = $el.find('.pt02b .ul02 li').first().text().trim()
-    const location = locationRaw
-      .replace(/\[勤務地[・・面接地]*\]\s*/, '')
-      .replace(/\s+/g, ' ')
-      .trim()
+    // Try to extract location, salary from attributions
+    let location = ''
+    let salaryText = ''
+    let employmentType = ''
 
-    // Employment type from ul01 > li
-    const employmentType = $el
-      .find('.pt01 .ul01 li:not(.li01):not(.li02)')
-      .first()
-      .text()
-      .trim()
+    for (const text of attributionTexts) {
+      if (
+        text.match(/[都道府県市区町村]/) ||
+        text.match(/駅/) ||
+        text.match(/リモート|在宅/)
+      ) {
+        location = location || text
+      } else if (text.match(/[万円給年月収時給]/) || text.match(/\d+,?\d*円/)) {
+        salaryText = salaryText || text
+      } else if (
+        text.match(/正社員|パート|アルバイト|契約|派遣|業務委託|インターン/)
+      ) {
+        employmentType = employmentType || text
+      }
+    }
 
-    // Salary from pt03
-    const salaryText = $el.find('.pt03 dt:contains("給与") + dd em').first().text().trim()
+    const description =
+      $el.find('.snippet, .snippet-single-line').first().text().trim() || title
 
-    // Job URL
+    // Find link
     const href =
-      $el.find('a.link_job').attr('href') ||
-      $el.find('.pt02b h2 a, .pt02b h3 a').first().attr('href') ||
-      ''
-    if (!href) return
+      $el.find('a.job-card-title, a').first().attr('href') || ''
+
+    if (!title) return
 
     const jobUrl = href.startsWith('http')
       ? href
-      : `${BASE_URL}${href}`
+      : href.startsWith('/')
+        ? `${BASE_URL}${href}`
+        : ''
 
-    // Description from occupation info
-    const occupation = $el
-      .find('.pt03 dt:contains("職種") + dd li')
-      .first()
-      .text()
-      .trim()
+    if (!jobUrl) return
 
     jobs.push({
       title,
       companyName: companyName || '非公開',
       location: location || '日本',
-      description: occupation || title,
+      description,
       salaryText: salaryText || undefined,
       employmentType: employmentType || undefined,
       url: jobUrl,
-      sourceSite: 'baitoru',
+      sourceSite: 'stanby',
     })
   })
 
@@ -108,7 +113,7 @@ async function fetchPage(url: string, label: string): Promise<RawJobData[]> {
   })
 
   if (!res.ok) {
-    console.warn(`[Baitoru] ${label}: HTTP ${res.status}`)
+    console.warn(`[Stanby] ${label}: HTTP ${res.status}`)
     return []
   }
 
@@ -117,14 +122,14 @@ async function fetchPage(url: string, label: string): Promise<RawJobData[]> {
   return parseJobCards($)
 }
 
-export const baitoruScraper: JobScraper = {
-  name: 'baitoru',
+export const standbyScraper: JobScraper = {
+  name: 'stanby',
 
   async scrape(query: ScraperQuery): Promise<RawJobData[]> {
     try {
-      const allowed = await checkRobotsTxt(BASE_URL, '/kw/')
+      const allowed = await checkRobotsTxt(BASE_URL, '/search')
       if (!allowed) {
-        console.warn('[Baitoru] Blocked by robots.txt')
+        console.warn('[Stanby] Blocked by robots.txt')
         return []
       }
 
@@ -145,6 +150,10 @@ export const baitoruScraper: JobScraper = {
         }
       }
 
+      console.log(
+        `[Stanby] Fetching ${fetchTasks.length} pages (${keywords.length} keywords × ${pagesPerKw} pages)`
+      )
+
       const results = await Promise.allSettled(
         fetchTasks.map(({ url, label }) => fetchPage(url, label))
       )
@@ -159,12 +168,12 @@ export const baitoruScraper: JobScraper = {
       }
 
       console.log(
-        `[Baitoru] Total: ${allJobs.length} jobs from ${successCount}/${fetchTasks.length} pages`
+        `[Stanby] Total: ${allJobs.length} jobs from ${successCount}/${fetchTasks.length} successful pages`
       )
       return allJobs
     } catch (e) {
       console.warn(
-        '[Baitoru] Scrape failed:',
+        '[Stanby] Scrape failed:',
         e instanceof Error ? e.message : e
       )
       return []

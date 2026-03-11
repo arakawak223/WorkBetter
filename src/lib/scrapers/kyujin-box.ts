@@ -3,7 +3,7 @@ import type { JobScraper, RawJobData, ScraperQuery } from './types'
 import { getRandomUserAgent, checkRobotsTxt } from './base'
 
 const BASE_URL = 'https://xn--pckua2a7gp15o89zb.com' // 求人ボックス
-const PAGES_PER_KEYWORD = 5 // 各キーワードから取得するページ数
+const PAGES_PER_KEYWORD = 10 // 各キーワードから取得するページ数
 
 // 職種未指定時に複数キーワードで並列検索して結果を増やす
 const DEFAULT_KEYWORDS = [
@@ -15,6 +15,13 @@ const DEFAULT_KEYWORDS = [
   '営業',
   '事務',
   '医療 介護',
+  '製造 工場',
+  '建設 建築',
+  'IT プログラマー',
+  '飲食 調理',
+  '物流 配送',
+  '教育 講師',
+  '金融 保険',
 ]
 
 function buildSearchUrl(

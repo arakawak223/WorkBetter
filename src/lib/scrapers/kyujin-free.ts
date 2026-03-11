@@ -2,94 +2,69 @@ import * as cheerio from 'cheerio'
 import type { JobScraper, RawJobData, ScraperQuery } from './types'
 import { getRandomUserAgent, checkRobotsTxt } from './base'
 
-const BASE_URL = 'https://www.baitoru.com'
+const BASE_URL = 'https://xn--free-rl4cu83al60d.com' // 求人free.com
 const PAGES_PER_KEYWORD = 10
 
 const DEFAULT_KEYWORDS = [
-  '正社員',
   'エンジニア',
   '営業',
   '事務',
-  '飲食',
-  '製造',
+  '正社員',
   '介護',
+  'ドライバー',
+  '飲食',
   '販売',
-  '物流 配送',
-  '建設 建築',
-  'IT プログラマー',
-  '看護 医療',
-  '教育 講師',
-  '金融 保険',
-  '不動産',
+  '看護',
+  '保育',
+  '建築',
+  '工場',
+  'IT',
+  '経理',
+  '清掃',
 ]
 
 function buildSearchUrl(keyword: string, location: string | undefined, page: number): string {
-  const parts = [keyword]
-  if (location) parts.push(location)
-  const kw = parts.join('+')
-  const base = `${BASE_URL}/kw/${encodeURIComponent(kw)}/jlist/`
-  if (page > 1) return `${base}?pg=${page}`
-  return base
+  const params = new URLSearchParams()
+  const q = location ? `${keyword} ${location}` : keyword
+  params.set('q', q)
+  if (page > 1) params.set('page', String(page))
+  return `${BASE_URL}/search?${params.toString()}`
 }
 
 function parseJobCards($: cheerio.CheerioAPI): RawJobData[] {
   const jobs: RawJobData[] = []
 
-  $('div.list-jobListDetail div.bg02').each((_i, el) => {
+  $('div.job-item, article.job, div.search-result-item, li.job-list-item').each((_i, el) => {
     const $el = $(el)
 
-    // Title from h2 or h3 inside pt02b
-    const title =
-      $el.find('.pt02b h2 a span, .pt02b h3 a span').first().text().trim()
+    const titleEl = $el.find('h2 a, h3 a, .job-title a, .title a').first()
+    const title = titleEl.text().trim()
+    const href = titleEl.attr('href') || ''
+
+    const companyName = $el.find('.company-name, .company, .employer').first().text().trim()
+    const location = $el.find('.location, .area, .place').first().text().trim()
+    const description = $el.find('.description, .detail, .snippet, p').first().text().trim()
+    const salaryText = $el.find('.salary, .pay, .wage').first().text().trim()
+
     if (!title) return
-
-    // Company name from pt02b > p
-    const companyName = $el.find('.pt02b > p').first().text().trim()
-
-    // Location from ul02
-    const locationRaw = $el.find('.pt02b .ul02 li').first().text().trim()
-    const location = locationRaw
-      .replace(/\[勤務地[・・面接地]*\]\s*/, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    // Employment type from ul01 > li
-    const employmentType = $el
-      .find('.pt01 .ul01 li:not(.li01):not(.li02)')
-      .first()
-      .text()
-      .trim()
-
-    // Salary from pt03
-    const salaryText = $el.find('.pt03 dt:contains("給与") + dd em').first().text().trim()
-
-    // Job URL
-    const href =
-      $el.find('a.link_job').attr('href') ||
-      $el.find('.pt02b h2 a, .pt02b h3 a').first().attr('href') ||
-      ''
-    if (!href) return
 
     const jobUrl = href.startsWith('http')
       ? href
-      : `${BASE_URL}${href}`
+      : href.startsWith('/')
+        ? `${BASE_URL}${href}`
+        : ''
 
-    // Description from occupation info
-    const occupation = $el
-      .find('.pt03 dt:contains("職種") + dd li')
-      .first()
-      .text()
-      .trim()
+    if (!jobUrl) return
 
     jobs.push({
       title,
       companyName: companyName || '非公開',
       location: location || '日本',
-      description: occupation || title,
+      description: description || title,
       salaryText: salaryText || undefined,
-      employmentType: employmentType || undefined,
+      employmentType: undefined,
       url: jobUrl,
-      sourceSite: 'baitoru',
+      sourceSite: 'kyujin-free',
     })
   })
 
@@ -108,7 +83,7 @@ async function fetchPage(url: string, label: string): Promise<RawJobData[]> {
   })
 
   if (!res.ok) {
-    console.warn(`[Baitoru] ${label}: HTTP ${res.status}`)
+    console.warn(`[KyujinFree] ${label}: HTTP ${res.status}`)
     return []
   }
 
@@ -117,18 +92,17 @@ async function fetchPage(url: string, label: string): Promise<RawJobData[]> {
   return parseJobCards($)
 }
 
-export const baitoruScraper: JobScraper = {
-  name: 'baitoru',
+export const kyujinFreeScraper: JobScraper = {
+  name: 'kyujin-free',
 
   async scrape(query: ScraperQuery): Promise<RawJobData[]> {
     try {
-      const allowed = await checkRobotsTxt(BASE_URL, '/kw/')
+      const allowed = await checkRobotsTxt(BASE_URL, '/search')
       if (!allowed) {
-        console.warn('[Baitoru] Blocked by robots.txt')
+        console.warn('[KyujinFree] Blocked by robots.txt')
         return []
       }
 
-      // 職種指定があればそのキーワードのみ、なければ複数キーワードで並列検索
       const keywords = query.occupation
         ? [query.occupation]
         : DEFAULT_KEYWORDS
@@ -145,6 +119,10 @@ export const baitoruScraper: JobScraper = {
         }
       }
 
+      console.log(
+        `[KyujinFree] Fetching ${fetchTasks.length} pages (${keywords.length} keywords × ${pagesPerKw} pages)`
+      )
+
       const results = await Promise.allSettled(
         fetchTasks.map(({ url, label }) => fetchPage(url, label))
       )
@@ -159,12 +137,12 @@ export const baitoruScraper: JobScraper = {
       }
 
       console.log(
-        `[Baitoru] Total: ${allJobs.length} jobs from ${successCount}/${fetchTasks.length} pages`
+        `[KyujinFree] Total: ${allJobs.length} jobs from ${successCount}/${fetchTasks.length} successful pages`
       )
       return allJobs
     } catch (e) {
       console.warn(
-        '[Baitoru] Scrape failed:',
+        '[KyujinFree] Scrape failed:',
         e instanceof Error ? e.message : e
       )
       return []

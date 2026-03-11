@@ -1,5 +1,20 @@
 import type { JobScraper, RawJobData, ScraperQuery } from './types'
 
+export const MAJOR_REGIONS = [
+  '東京都',
+  '大阪府',
+  '愛知県',
+  '福岡県',
+  '北海道',
+  '宮城県',
+  '神奈川県',
+  '埼玉県',
+  '千葉県',
+  '京都府',
+  '兵庫県',
+  '広島県',
+]
+
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -45,6 +60,11 @@ export async function checkRobotsTxt(
   }
 }
 
+export type ScraperResult = {
+  jobs: RawJobData[]
+  sources: { name: string; count: number; error?: string }[]
+}
+
 export async function runScrapers(
   scrapers: JobScraper[],
   query: ScraperQuery
@@ -54,9 +74,14 @@ export async function runScrapers(
   )
 
   const allJobs: RawJobData[] = []
-  for (const result of results) {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    const name = scrapers[i].name
     if (result.status === 'fulfilled') {
+      console.log(`[Scraper] ${name}: ${result.value.length} jobs`)
       allJobs.push(...result.value)
+    } else {
+      console.warn(`[Scraper] ${name}: FAILED -`, result.reason)
     }
   }
   return allJobs
